@@ -1,2 +1,2 @@
-# Spotify_Agent
-Spotify chat bot to make albums for users.
+# YTmusic_Agent
+YTmusic chat bot to make albums for users.
