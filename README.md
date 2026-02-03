@@ -57,7 +57,20 @@ LLM_name=OPENAI
 ```
 
 ## ▶️ Usage
-Run the agent:
+### Option A: Web Interface (Recommended)
+This launches a modern web app with a visual Shopping Cart.
+
+```bash
+# Start the server
+.venv\Scripts\python server.py
+```
+Then open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
+
+- **Status Check**: Look at the "Auth Status" in the sidebar.
+- **Update Auth**: Click "Update Auth" and paste your curl command directly in the UI.
+
+### Option B: CLI Mode
+Run the agent in your terminal:
 ```bash
 .venv\Scripts\python main.py
 ```
