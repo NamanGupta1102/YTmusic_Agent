@@ -66,6 +66,15 @@ def checkout_playlist(playlist_name: str) -> str:
     """Finalizes the cart into a real YouTube Music Playlist."""
     cart = session.get_cart()
     if not cart: return "Cart is empty! add some songs first."
+    
+    # Refresh Auth immediately before creation
+    try:
+        from scripts.setup_browser_auth import parse_curl_and_save
+        print(f"🔄 optimizing auth...")
+        parse_curl_and_save() # Updates browser.json
+    except Exception as e:
+        print(f"⚠️ Auth refresh warning: {e}")
+
     print(f"\n🤖 Agent: Building playlist '{playlist_name}' with {len(cart)} songs...")
     ids = [s['videoId'] for s in cart]
     try:
