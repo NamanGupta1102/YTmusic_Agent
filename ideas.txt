@@ -1,0 +1,16 @@
+# Future Tool Ideas for YT Music Agent
+
+1. The "Taste Matcher" (Recommendations Tool)
+   - Concept: get_recommendations(video_id)
+   - Why: Instead of guessing songs, search for one seed song, then ask YouTube: "What plays next?" (Radio feature).
+   - Tech: likely using get_watch_playlist() from ytmusicapi.
+
+2. The "Library Manager" (Add to Existing)
+   - Concept: add_to_playlist(playlist_name, song_list)
+   - Why: Add songs to existing playlists (e.g., "Gym", "Chill") instead of always creating new ones.
+   - Tech: Needs fuzzy matching to find playlist ID by name, then add_playlist_items().
+
+3. The "Crate Digger" (Mood/Genre Browse)
+   - Concept: get_mood_playlists(mood="Chill")
+   - Why: Find other existing playlists based on mood or genre.
+   - Tech: Explore/Moods tab data extraction.
