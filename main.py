@@ -106,187 +106,179 @@ You are an intelligent Music Curator Agent for YouTube Music.
 **Tone**: Enthusiastic, knowledgeable, helper.
 """
 
-# --- GEMINI AGENT ---
-def run_gemini_agent():
-    from google import genai
-    from google.genai import types
-    
-    api_key = os.getenv("GEMINI_API_KEY")
-    model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash")
-    print(f"Initializing GEMINI Agent ({model_name})...")
-    
-    client = genai.Client(api_key=api_key)
-    
-    tools_list = list(AVAILABLE_TOOLS.values())
-    
-    chat = client.chats.create(
-        model=model_name,
-        config=types.GenerateContentConfig(
+# --- AGENT CLASSES ---
+
+class ChatAgent:
+    def __init__(self):
+        self.history = []
+        
+    def send_message(self, message: str) -> str:
+        raise NotImplementedError
+
+class GeminiAgent(ChatAgent):
+    def __init__(self):
+        super().__init__()
+        from google import genai
+        from google.genai import types
+        
+        api_key = os.getenv("GEMINI_API_KEY")
+        model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash")
+        print(f"Initializing GEMINI Agent ({model_name})...")
+        
+        self.client = genai.Client(api_key=api_key)
+        self.tools_list = list(AVAILABLE_TOOLS.values())
+        self.config = types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
-            tools=tools_list,
+            tools=self.tools_list,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=False)
         )
-    )
-    
-    print("\n🎧 Ultimate YT Music Agent (GEMINI MODE) is Ready!")
-    print("----------------------------------------------------------")
-    while True:
-        try:
-            user_input = input("\nYou: ")
-            if user_input.lower() in ['quit', 'exit']: break
-            if not user_input.strip(): continue
+        self.chat = self.client.chats.create(model=model_name, config=self.config)
 
-            response = chat.send_message(user_input)
+    def send_message(self, message: str) -> str:
+        try:
+            response = self.chat.send_message(message)
             if response.text:
-                print(f"Agent: {response.text}")
+                return response.text
             elif response.candidates and response.candidates[0].content.parts:
-                print(f"Agent: {response.candidates[0].content.parts[0].text}")
+                return response.candidates[0].content.parts[0].text
             else:
-                print("Agent: (No text response)")
-                
+                return "(No text response)"
         except Exception as e:
-            if "429" in str(e): print("⚠️ Quota Exceeded (429).")
-            else: print(f"Error: {e}")
+            if "429" in str(e): return "⚠️ Quota Exceeded (429)."
+            return f"Error: {e}"
 
-# --- OPENAI AGENT ---
-def run_openai_agent():
-    from openai import OpenAI
-    
-    api_key = os.getenv("OPENAI_KEY")
-    model_name = os.getenv("OPENAI_MODEL", "gpt-4o")
-    print(f"Initializing OPENAI Agent ({model_name})...")
-    
-    client = OpenAI(api_key=api_key)
-    
-    # Define Tools Schema (OpenAI requires JSON)
-    tools_schema = [
-        {
-            "type": "function",
-            "function": {
-                "name": "get_artist_songs",
-                "description": "Gets top songs for a specific artist",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"artist_name": {"type": "string"}},
-                    "required": ["artist_name"]
+class OpenAIAgent(ChatAgent):
+    def __init__(self):
+        super().__init__()
+        from openai import OpenAI
+        
+        api_key = os.getenv("OPENAI_KEY")
+        self.model_name = os.getenv("OPENAI_MODEL", "gpt-4o")
+        print(f"Initializing OPENAI Agent ({self.model_name})...")
+        
+        self.client = OpenAI(api_key=api_key)
+        self.messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
+        
+        # Tools Schema
+        self.tools_schema = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_artist_songs",
+                    "description": "Gets top songs for a specific artist",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"artist_name": {"type": "string"}},
+                        "required": ["artist_name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_song_recommendations",
+                    "description": "Gets recommmendations based on a seed song",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"seed_song": {"type": "string"}},
+                        "required": ["seed_song"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "add_song_to_cart",
+                    "description": "Searches for a song and adds it to the user's cart",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"song_query": {"type": "string"}},
+                        "required": ["song_query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "remove_song_from_cart",
+                    "description": "Removes a song from the cart",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"song_name_or_id": {"type": "string"}},
+                        "required": ["song_name_or_id"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "review_cart",
+                    "description": "Returns the current list of songs in the cart",
+                    "parameters": {"type": "object", "properties": {}}
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "checkout_playlist",
+                    "description": "Finalizes the cart into a real YouTube Music Playlist",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "playlist_name": {"type": "string"},
+                            "description": {"type": "string"}
+                        },
+                        "required": ["playlist_name"]
+                    }
                 }
             }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_song_recommendations",
-                "description": "Gets recommmendations based on a seed song",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"seed_song": {"type": "string"}},
-                    "required": ["seed_song"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "add_song_to_cart",
-                "description": "Searches for a song and adds it to the user's cart",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"song_query": {"type": "string"}},
-                    "required": ["song_query"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "remove_song_from_cart",
-                "description": "Removes a song from the cart",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"song_name_or_id": {"type": "string"}},
-                    "required": ["song_name_or_id"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "review_cart",
-                "description": "Returns the current list of songs in the cart",
-                "parameters": {"type": "object", "properties": {}}
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "checkout_playlist",
-                "description": "Finalizes the cart into a real YouTube Music Playlist",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "playlist_name": {"type": "string"},
-                        "description": {"type": "string"}
-                    },
-                    "required": ["playlist_name"]
-                }
-            }
-        }
-    ]
-    
-    messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
-    
-    print("\n🎧 Ultimate YT Music Agent (OPENAI MODE) is Ready!")
-    print("----------------------------------------------------------")
-    while True:
-        try:
-            user_input = input("\nYou: ")
-            if user_input.lower() in ['quit', 'exit']: break
-            if not user_input.strip(): continue
+        ]
 
-            messages.append({"role": "user", "content": user_input})
-            
-            # loop to handle tool calls
-            while True:
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    tools=tools_schema
+    def send_message(self, message: str) -> str:
+        self.messages.append({"role": "user", "content": message})
+        
+        while True:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=self.messages,
+                    tools=self.tools_schema
                 )
                 msg = response.choices[0].message
                 
                 if msg.tool_calls:
-                    # Append assistant message with tool calls
-                    messages.append(msg)
-                    
+                    self.messages.append(msg)
                     for tool_call in msg.tool_calls:
                         fname = tool_call.function.name
                         args = json.loads(tool_call.function.arguments)
                         func = AVAILABLE_TOOLS.get(fname)
                         
                         if func:
-                            # Execute tool
                             try:
                                 result = func(**args)
                             except Exception as e:
                                 result = f"Error: {e}"
-                                
-                            # Append tool output
-                            messages.append({
+                            
+                            self.messages.append({
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
                                 "content": str(result)
                             })
-                    # Loop back to get final response
                 else:
-                    # Final text response
-                    print(f"Agent: {msg.content}")
-                    messages.append(msg)
-                    break
+                    self.messages.append(msg)
+                    return msg.content
+                    
+            except Exception as e:
+                return f"Error: {e}"
 
-        except Exception as e:
-            print(f"Error: {e}")
+# --- FACTORY ---
+def get_agent():
+    if LLM_PROVIDER == "OPENAI":
+        return OpenAIAgent()
+    else:
+        return GeminiAgent()
 
-
+# --- CLI ENTRY POINT ---
 def main():
     # 1. Refresh Browser Auth from curl.txt
     try:
@@ -296,10 +288,21 @@ def main():
     except Exception as e:
         print(f"⚠️ Warning: Could not auto-refresh auth: {e}")
 
-    if LLM_PROVIDER == "OPENAI":
-        run_openai_agent()
-    else:
-        run_gemini_agent()
+    try:
+        agent = get_agent()
+        print("\n🎧 Ultimate YT Music Agent is Ready!")
+        print("----------------------------------------------------------")
+        
+        while True:
+            user_input = input("\nYou: ")
+            if user_input.lower() in ['quit', 'exit']: break
+            if not user_input.strip(): continue
+
+            response = agent.send_message(user_input)
+            print(f"Agent: {response}")
+            
+    except Exception as e:
+        print(f"Critical Error: {e}")
 
 if __name__ == "__main__":
     main()

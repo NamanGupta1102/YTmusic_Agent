@@ -1,4 +1,7 @@
 ytmusicapi
-python-dotenv
-google-genai
 openai
+google-genai
+python-dotenv
+fastapi
+uvicorn
+python-multipart
