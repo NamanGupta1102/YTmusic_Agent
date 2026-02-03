@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT Music AI Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🎵 My Cart</h2>
+                <span id="cart-count">0 songs</span>
+            </div>
+            
+            <div class="cart-list" id="cart-list">
+                <!-- Cart items will go here -->
+                <div class="empty-state">Cart is empty</div>
+            </div>
+
+            <div class="auth-box">
+                <h3>🔑 Auth Status</h3>
+                <p class="status-indicator active">● Active</p>
+                <button id="auth-btn">Update Auth</button>
+            </div>
+        </aside>
+
+        <!-- MAIN CHAT -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <h1>YouTube Music Curator AI</h1>
+                <p>Powered by Gemini/OpenAI</p>
+            </header>
+
+            <div class="messages-container" id="messages-container">
+                <div class="message agent">
+                    <div class="bubble">
+                        Hello! I'm your YT Music Agent. I can find songs, recommendations, and build playlists. What are you in the mood for?
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <form id="chat-form">
+                    <input type="text" id="user-input" placeholder="Find me some jazz..." autocomplete="off">
+                    <button type="submit">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- AUTH MODAL -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Update Browser Auth</h2>
+            <p>To create playlists, we need a fresh cURL command from YouTube Music.</p>
+            <ol>
+                <li>Open <b>music.youtube.com</b> in Chrome/Edge.</li>
+                <li>Open DevTools (F12) -> Network Tab.</li>
+                <li>Filter by "browse". Refresh page if needed.</li>
+                <li>Right Click a request -> "Copy as cURL (bash)".</li>
+                <li>Paste it below.</li>
+            </ol>
+            <textarea id="curl-input" placeholder="curl 'https://music.youtube.com/youtubei/v1/browse?key=...' ..."></textarea>
+            <button id="save-auth-btn">Update Credentials</button>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
