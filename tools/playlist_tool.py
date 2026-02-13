@@ -4,13 +4,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from scripts.setup_browser_auth import parse_curl_and_save
+
 def get_authenticated_client():
     """
     Initializes and returns an authenticated YTMusic client using browser headers.
-    Expects 'browser.json' to exist in the current directory.
+    Always attempts to refresh 'browser.json' from 'curl.txt' first.
     """
+    try:
+        parse_curl_and_save()
+    except Exception as e:
+        # If it fails (e.g. curl.txt is empty), warning but try to proceed if json exists
+        logger.warning(f"Auto-refresh of auth failed: {e}")
+
     if not os.path.exists('browser.json'):
-        raise FileNotFoundError("browser.json not found. Run setup_browser_auth.py first.")
+        raise FileNotFoundError("browser.json not found. Please paste a valid curl command into curl.txt.")
 
     try:
         # Simple init with headers file

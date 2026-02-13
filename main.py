@@ -112,7 +112,9 @@ class ChatAgent:
     def __init__(self):
         self.history = []
         
-    def send_message(self, message: str) -> str:
+    # from typing import Generator
+    # def send_message(self, message: str) -> Generator[dict, None, None]:
+    def send_message(self, message: str):
         raise NotImplementedError
 
 class GeminiAgent(ChatAgent):
@@ -134,18 +136,28 @@ class GeminiAgent(ChatAgent):
         )
         self.chat = self.client.chats.create(model=model_name, config=self.config)
 
-    def send_message(self, message: str) -> str:
+    def send_message(self, message: str):
         try:
+            # Gemini auto-execution is synchronous in this SDK version
+            # So we can't easily stream logs unless we implement manual tool loop.
+            # Use a dummy log to show activity.
+            yield {"type": "log", "content": "Processing with Gemini..."}
+            
             response = self.chat.send_message(message)
+            text_resp = ""
             if response.text:
-                return response.text
+                text_resp = response.text
             elif response.candidates and response.candidates[0].content.parts:
-                return response.candidates[0].content.parts[0].text
+                text_resp = response.candidates[0].content.parts[0].text
             else:
-                return "(No text response)"
+                text_resp = "(No text response)"
+            
+            yield {"type": "answer", "content": text_resp}
+
         except Exception as e:
-            if "429" in str(e): return "⚠️ Quota Exceeded (429)."
-            return f"Error: {e}"
+            err_msg = f"Error: {e}"
+            if "429" in str(e): err_msg = "⚠️ Quota Exceeded (429)."
+            yield {"type": "answer", "content": err_msg}
 
 class OpenAIAgent(ChatAgent):
     def __init__(self):
@@ -234,7 +246,7 @@ class OpenAIAgent(ChatAgent):
             }
         ]
 
-    def send_message(self, message: str) -> str:
+    def send_message(self, message: str):
         self.messages.append({"role": "user", "content": message})
         
         while True:
@@ -253,6 +265,9 @@ class OpenAIAgent(ChatAgent):
                         args = json.loads(tool_call.function.arguments)
                         func = AVAILABLE_TOOLS.get(fname)
                         
+                        log_msg = f"🛠️ Executing: {fname}({args})"
+                        yield {"type": "log", "content": log_msg}
+                        
                         if func:
                             try:
                                 result = func(**args)
@@ -266,10 +281,12 @@ class OpenAIAgent(ChatAgent):
                             })
                 else:
                     self.messages.append(msg)
-                    return msg.content
+                    yield {"type": "answer", "content": msg.content}
+                    return
                     
             except Exception as e:
-                return f"Error: {e}"
+                yield {"type": "answer", "content": f"Error: {e}"}
+                return
 
 # --- FACTORY ---
 def get_agent():
@@ -298,8 +315,13 @@ def main():
             if user_input.lower() in ['quit', 'exit']: break
             if not user_input.strip(): continue
 
-            response = agent.send_message(user_input)
-            print(f"Agent: {response}")
+            # Consuming the generator
+            print("\n", end="")
+            for event in agent.send_message(user_input):
+                if event["type"] == "log":
+                    print(f"   {event['content']}")
+                elif event["type"] == "answer":
+                    print(f"\nAgent: {event['content']}")
             
     except Exception as e:
         print(f"Critical Error: {e}")

@@ -59,20 +59,30 @@ class ChatResponse(BaseModel):
 async def get_index():
     return FileResponse("static/index.html")
 
+import json
+from fastapi.responses import StreamingResponse
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     if not agent:
         raise HTTPException(status_code=500, detail="Agent not initialized. Check server logs.")
     
-    try:
-        response_text = agent.send_message(request.message)
-        return {
-            "agent_response": response_text,
-            "cart": session.get_cart()
-        }
-    except Exception as e:
-        logger.error(f"Chat Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    def event_stream():
+        try:
+            # Iterate over the agent's generator
+            for event in agent.send_message(request.message):
+                # event is {"type": "log"|"answer", "content": ...}
+                # We yield it as NDJSON
+                yield json.dumps(event) + "\n"
+            
+            # After the loop finishes, we can send the updated cart as a separate event
+            yield json.dumps({"type": "cart", "content": session.get_cart()}) + "\n"
+            
+        except Exception as e:
+            logger.error(f"Stream Error: {e}")
+            yield json.dumps({"type": "error", "content": str(e)}) + "\n"
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 @app.get("/api/cart")
 async def get_cart():

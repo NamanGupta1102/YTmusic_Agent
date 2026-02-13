@@ -75,33 +75,113 @@ function addMessage(text, sender) {
     bubble.classList.add('bubble');
     bubble.textContent = text;
 
+
     msgDiv.appendChild(bubble);
     messagesContainer.appendChild(msgDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 async function sendMessageToAgent(message) {
-    loadingOverlay.classList.remove('hidden');
+    const thinkingId = showTypingIndicator();
+    let lastLogId = null; // Track the current log bubble to remove it later
+
     try {
         const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: message })
         });
-        const data = await res.json();
 
-        if (res.ok) {
-            addMessage(data.agent_response, 'agent');
-            updateCartUI(data.cart);
-        } else {
-            addMessage(`Error: ${data.detail}`, 'agent');
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        // Remove initial thinking bubble once stream starts
+        removeElement(thinkingId);
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+
+                try {
+                    const event = JSON.parse(line);
+
+                    // If we had a previous log bubble, remove it now because we moved to next step
+                    if (lastLogId) {
+                        removeElement(lastLogId);
+                        lastLogId = null;
+                    }
+
+                    if (event.type === 'log') {
+                        // Create new log bubble
+                        lastLogId = 'log-' + Date.now();
+                        addLogMessage(event.content, lastLogId);
+                    }
+                    else if (event.type === 'answer') {
+                        addMessage(event.content, 'agent');
+                    }
+                    else if (event.type === 'cart') {
+                        updateCartUI(event.content);
+                    }
+                    else if (event.type === 'error') {
+                        addMessage(`Error: ${event.content}`, 'agent');
+                    }
+
+                } catch (e) {
+                    console.error("JSON Parse Error", e);
+                }
+            }
         }
+
     } catch (error) {
         console.error(error);
+        removeElement(thinkingId);
         addMessage("Error: Failed to reach the server. Is it running?", 'agent');
-    } finally {
-        loadingOverlay.classList.add('hidden');
     }
+}
+
+function showTypingIndicator() {
+    const id = 'typing-' + Date.now();
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('message', 'agent');
+    msgDiv.id = id;
+
+    // Create the dots container
+    const indicator = document.createElement('div');
+    indicator.classList.add('typing-indicator');
+    indicator.innerHTML = '<span></span><span></span><span></span>';
+
+    msgDiv.appendChild(indicator);
+    messagesContainer.appendChild(msgDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    return id;
+}
+
+function removeElement(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+}
+
+// Deprecated wrapper for backward compatibility if needed, or just remove
+function removeTypingIndicator(id) {
+    removeElement(id);
+}
+
+// Helper to add a log message
+function addLogMessage(text, id = null) {
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('log-message');
+    if (id) msgDiv.id = id;
+    msgDiv.textContent = text;
+    messagesContainer.appendChild(msgDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 async function fetchCart() {
